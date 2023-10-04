@@ -24,6 +24,8 @@ import org.apache.cxf.binding.soap.SoapMessage
 import org.apache.cxf.binding.soap.interceptor.AbstractSoapInterceptor
 import org.apache.cxf.message.Message
 import org.apache.cxf.phase.Phase
+import javax.xml.bind.JAXBElement
+import javax.xml.namespace.QName
 
 fun serializePerson(person: Person): String? {
     return try {
@@ -32,8 +34,10 @@ fun serializePerson(person: Person): String? {
 
         marshaller.setProperty(Marshaller.JAXB_FORMATTED_OUTPUT, true) // For pretty-print XML
 
+        val qName = QName("namespace", "Person")
+        val jaxbElement = JAXBElement(qName, Person::class.java, person)
         val sw = StringWriter()
-        marshaller.marshal(person, sw)
+        marshaller.marshal(jaxbElement, sw)
 
         sw.toString()
     } catch (e: JAXBException) {

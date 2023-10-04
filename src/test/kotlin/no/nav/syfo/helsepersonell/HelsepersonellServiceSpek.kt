@@ -26,6 +26,7 @@ import no.nhn.schemas.reg.hprv2.IHPR2ServiceHentPersonMedPersonnummerGenericFaul
 import no.nhn.schemas.reg.hprv2.Person
 import no.nhn.schemas.reg.hprv2.Tilleggskompetanse
 import org.amshove.kluent.shouldBeEqualTo
+import org.amshove.kluent.shouldNotBeEqualTo
 
 class HelsepersonellServiceSpek :
     FunSpec({
@@ -36,6 +37,12 @@ class HelsepersonellServiceSpek :
             clearAllMocks()
             every { mock.hentPersonMedPersonnummer("fnr", any()) } returns getPerson()
             every { mock.hentPerson(any(), any()) } returns getPerson()
+        }
+
+        context("Test serializer") {
+            val person = getPerson()
+            val xml = serializePerson(person)
+            xml shouldNotBeEqualTo null
         }
 
         context("HelsepersonellService") {
