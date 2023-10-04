@@ -1,9 +1,13 @@
 package no.nav.syfo.helsepersonell
 
+import java.io.StringWriter
 import java.time.LocalDateTime
 import java.time.OffsetDateTime
 import java.time.ZoneOffset
 import java.util.GregorianCalendar
+import javax.xml.bind.JAXBContext
+import javax.xml.bind.JAXBException
+import javax.xml.bind.Marshaller
 import javax.xml.ws.soap.SOAPFaultException
 import no.nav.syfo.datatypeFactory
 import no.nav.syfo.helsepersonell.redis.HelsepersonellRedis
@@ -20,6 +24,23 @@ import org.apache.cxf.binding.soap.SoapMessage
 import org.apache.cxf.binding.soap.interceptor.AbstractSoapInterceptor
 import org.apache.cxf.message.Message
 import org.apache.cxf.phase.Phase
+
+fun serializePerson(person: Person): String? {
+    return try {
+        val jaxbContext = JAXBContext.newInstance(Person::class.java)
+        val marshaller = jaxbContext.createMarshaller()
+
+        marshaller.setProperty(Marshaller.JAXB_FORMATTED_OUTPUT, true) // For pretty-print XML
+
+        val sw = StringWriter()
+        marshaller.marshal(person, sw)
+
+        sw.toString()
+    } catch (e: JAXBException) {
+        e.printStackTrace()
+        null
+    }
+}
 
 class HelsepersonellService(
     private val helsepersonellV1: IHPR2Service,
@@ -38,18 +59,18 @@ class HelsepersonellService(
         if (fromRedis != null && shouldUseRedisModel(fromRedis)) {
             return fromRedis.behandler
         }
-        return try {
-            helsepersonellV1
-                .hentPersonMedPersonnummer(
+        try {
+            val person =
+                helsepersonellV1.hentPersonMedPersonnummer(
                     behandlersPersonnummer,
                     datatypeFactory.newXMLGregorianCalendar(GregorianCalendar()),
                 )
-                .let { ws2Behandler(it) }
-                .also {
-                    logger.info("Hentet behandler for personnummer")
-                    securelog.info("Hentet behandler for personnummer behandler objekt: $it")
-                    helsepersonellRedis.save(it)
-                }
+            securelog.info("hentet person fra helsenett: ${serializePerson(person)}")
+            return ws2Behandler(person).also {
+                logger.info("Hentet behandler for personnummer")
+                securelog.info("Hentet behandler for personnummer behandler objekt: $it")
+                helsepersonellRedis.save(it)
+            }
         } catch (e: IHPR2ServiceHentPersonMedPersonnummerGenericFaultFaultFaultMessage) {
             return when (e.message) {
                 PERSONNR_IKKE_FUNNET -> {
@@ -73,17 +94,17 @@ class HelsepersonellService(
             return fromRedis.behandler
         }
         try {
-            return helsepersonellV1
-                .hentPerson(
+            val person =
+                helsepersonellV1.hentPerson(
                     Integer.valueOf(hprNummer),
                     datatypeFactory.newXMLGregorianCalendar(GregorianCalendar()),
                 )
-                .let { ws2Behandler(it) }
-                .also {
-                    logger.info("Hentet behandler for HPR-nummer")
-                    securelog.info("Hentet behandler for HPR-nummer behandler objekt: $it")
-                    helsepersonellRedis.save(it)
-                }
+            securelog.info("hentet person fra helsenett: ${serializePerson(person)}")
+            return ws2Behandler(person).also {
+                logger.info("Hentet behandler for HPR-nummer")
+                securelog.info("Hentet behandler for HPR-nummer behandler objekt: $it")
+                helsepersonellRedis.save(it)
+            }
         } catch (e: IHPR2ServiceHentPersonGenericFaultFaultFaultMessage) {
             return when {
                 behandlerNotFound(e.message) -> {
